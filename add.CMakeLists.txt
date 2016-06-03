@@ -1,0 +1,18 @@
+# This is added to sql/CMakeLists.txt
+
+IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
+  ADD_LIBRARY(udf_ghost_wait_condition MODULE udf_ghost_wait_condition.cc)
+  SET_TARGET_PROPERTIES(udf_ghost_wait_condition PROPERTIES PREFIX "")
+  # udf_ghost_wait_condition depends on strings
+  IF(WIN32)
+    IF(MSVC)
+     SET_TARGET_PROPERTIES(udf_ghost_wait_condition PROPERTIES LINK_FLAGS "/DEF:${CMAKE_CURRENT_SOURCE_DIR}/udf_ghost_wait_condition.def")
+    ENDIF()
+    TARGET_LINK_LIBRARIES(udf_ghost_wait_condition strings)
+  ELSE()
+    # udf_ghost_wait_condition is using safemutex exported by mysqld
+    TARGET_LINK_LIBRARIES(udf_ghost_wait_condition mysqld)
+    SET_TARGET_PROPERTIES(udf_ghost_wait_condition
+      PROPERTIES LINK_FLAGS "${CMAKE_SHARED_LIBRARY_C_FLAGS}")
+  ENDIF()
+ENDIF()
