@@ -161,6 +161,13 @@ void create_ghost_wait_condition_deinit(UDF_INIT *initid __attribute__((unused))
 {
 }
 
+// create_ghost_wait_condition creates a wait condition
+// Input:
+//   <0: noop; does not really create condition
+//   other: create a wait condition
+// Return value:
+//   <0: noop; condition not really created
+//   1:  success; condition created
 longlong create_ghost_wait_condition(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
                     char *is_null __attribute__((unused)),
                     char *error __attribute__((unused)))
@@ -201,6 +208,14 @@ void destroy_ghost_wait_condition_deinit(UDF_INIT *initid __attribute__((unused)
 {
 }
 
+// destroy_ghost_wait_condition releases a taken wait condition
+// Input:
+//   <0: noop; no condition released
+//   other: release ghost wait condition
+// Return value:
+//   <0: noop; condition not actually released
+//   0:  condition not released (because it was probably not taken)
+//   1:  condition released
 longlong destroy_ghost_wait_condition(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
                     char *is_null __attribute__((unused)),
                     char *error __attribute__((unused)))
@@ -243,10 +258,15 @@ void ghost_wait_on_condition_deinit(UDF_INIT *initid __attribute__((unused)))
 {
 }
 
-// ghost_wait_on_condition attempts to wait on a condition. Return value:
-// -1 on noop (has not waited)
-// 0 when waited and released
-// >0 on error, namely on wait-timeout
+// ghost_wait_on_condition attempts to wait on a condition.
+// Input:
+//   <0 (negative): noop; not waiting on condition
+//   0  wait on condition until notified
+//   >0 wait with timeout (seconds)
+// Return value:
+//   -1 on noop (has not waited)
+//   0  when waited and released
+//   >0 on error, namely on wait-timeout
 longlong ghost_wait_on_condition(UDF_INIT *initid __attribute__((unused)), UDF_ARGS *args,
                     char *is_null __attribute__((unused)),
                     char *error __attribute__((unused)))
@@ -263,16 +283,16 @@ longlong ghost_wait_on_condition(UDF_INIT *initid __attribute__((unused)), UDF_A
 
   mysql_mutex_lock(&ghost_wait_lock);
   if (ghost_wait_cond_used == 1) {
-    //mysql_cond_wait(&ghost_wait_cond, &ghost_wait_lock);
-    struct timespec abstime;
-    set_timespec(abstime, GHOST_WAIT_TIMEOUT);
-    wait_result = mysql_cond_timedwait(&ghost_wait_cond, &ghost_wait_lock, &abstime);
-    //mysql_cond_timedwait(&ghost_wait_cond, &ghost_wait_lock, &ghost_condition_timeout);
-    //wait_result=1;
+    if (input_val == 0) {
+      mysql_cond_wait(&ghost_wait_cond, &ghost_wait_lock);
+    } else {
+      struct timespec abstime;
+      set_timespec(abstime, input_val);
+      wait_result = mysql_cond_timedwait(&ghost_wait_cond, &ghost_wait_lock, &abstime);
+    }
   }
   mysql_mutex_unlock(&ghost_wait_lock);
   return wait_result;
 }
-
 
 #endif /* HAVE_DLOPEN */
